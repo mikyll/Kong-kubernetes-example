@@ -15,9 +15,7 @@ This directory contains some examples for Kong Kubernetes installation (Kong Ing
 ### Local Installation
 
 - [docker](https://www.docker.com/) (Docker Desktop for Windows users);
-- [minikube](https://minikube.sigs.k8s.io/docs/start/);
-
-NB: Minikube is a tool capable of running a Kubernetes cluster locally. It supports different drivers (including Docker, in which case Kubernetes will run as a Docker container).
+- [minikube](https://minikube.sigs.k8s.io/docs/start/), to create a local Kubernetes cluster. It supports different drivers (including Docker, in which case Kubernetes will run as a Docker container).
 
 #### Minikube
 
