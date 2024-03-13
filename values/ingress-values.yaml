@@ -1,0 +1,16 @@
+gateway:
+  admin:
+    http:
+      enabled: true
+
+  # Custom Plugin
+  plugins:
+    configMaps:
+    - name: logger
+      pluginName: logger
+    - name: myheader
+      pluginName: myheader
+    - name: loadtest
+      pluginName: loadtest
+    - name: jwtchecker
+      pluginName: jwtchecker

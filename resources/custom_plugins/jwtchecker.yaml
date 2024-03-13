@@ -1,0 +1,119 @@
+apiVersion: v1
+data:
+  handler.lua: "--[[\r\nJWT Checker Custom Plugin (Kong 3.6.0)\r\n\r\n===============================================================================\r\n\r\nQuesto
+    plugin controlla se nella richiesta è presente un token JWT:\r\n- se è presente,
+    la risposta del backend service verrà propagata al\r\n  client con status code
+    200 e l'aggiunta del seguente messaggio\r\n  \"You're authorized! Payload: <token_payload>\".\r\n-
+    se non è presente, la risposta del backend service non verrà propagata\r\n  al
+    client e al suo posto verrà mostrato il seguente messaggio\r\n  \"You're not authorized.
+    No JWT token was found\", con status code 401 se\r\n  non era presente un header
+    Authorization e 403 se era presente ma non\r\n  conteneva un token JWT\r\n\r\nInoltre,
+    il plugin aggiunge anche un header \"X-JwtChecker-Authorized\" alla\r\nrisposta,
+    che indica se la richiesta conteneva un token JWT oppure no.\r\n\r\n===============================================================================\r\n\r\nI
+    plugin Kong permettono di iniettare logica custom in diverse fasi di\r\nesecuzione
+    del ciclo di vita del gateway.\r\n\r\nI plugin Kong funzionano a \"fasi\". Ogni
+    fase definisce un contesto, in cui\r\nè possibile implementare logica custom,
+    relativa ai diversi entry-point del\r\nciclo di vita del Gateway.\r\n\r\nRiferimenti
+    (PDK):\r\n-- kong.response\r\n-- docs: https://docs.konghq.com/gateway/latest/plugin-development/pdk/kong.response/\r\n--\r\n--]]\r\n\r\nlocal
+    JWTCheckerHandler = {}\r\n\r\nJWTCheckerHandler.PRIORITY = 1000\r\nJWTCheckerHandler.VERSION
+    = \"1.0.0\"\r\nJWTCheckerHandler.NAME = \"jwtchecker\"\r\n\r\n--======================================================================\r\n--
+    UTILITY FUNCTIONS\r\n--======================================================================\r\n\r\n--
+    This function removes the specified substring from a given string.\r\n-- @param
+    str: The original string.\r\n-- @param substr: The substring to be removed.\r\n--
+    @return: Returns the modified string with the substring removed.\r\nfunction removeSubstring(str,
+    substr)\r\n  -- Find the starting index of the substring in the string.\r\n  local
+    startIndex, endIndex = string.find(str, substr)\r\n\r\n  -- If the substring is
+    found, remove it from the string.\r\n  if startIndex and endIndex\r\n  then\r\n
+    \   local prefix = string.sub(str, 1, startIndex - 1)\r\n    local suffix = string.sub(str,
+    endIndex + 1)\r\n    return prefix .. suffix\r\n  end\r\n\r\n  -- If the substring
+    is not found, return the original string.\r\n  return str\r\nend\r\n\r\n-- Split
+    the specified string in a array of strings\r\n-- @param inputstr: The original
+    string.\r\n-- @param sep: The separator.\r\nfunction stringSplit(inputstr, sep)\r\n\tif
+    sep == nil\r\n    then\r\n\t\tsep = \"%s\"\r\n\tend\r\n\tlocal t = {}\r\n\tfor
+    str in string.gmatch(inputstr, \"([^\"..sep..\"]+)\")\r\n    do\r\n\t\ttable.insert(t,
+    str)\r\n\tend\r\n\treturn t\r\nend\r\n\r\nlocal b='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
+    -- You will need this for encoding/decoding\r\n-- encoding\r\nfunction enc(data)\r\n
+    \ return ((data:gsub('.', function(x) \r\n    local r,b='',x:byte()\r\n    for
+    i=8,1,-1 do r=r..(b%2^i-b%2^(i-1)>0 and '1' or '0') end\r\n    return r;\r\n  end)..'0000'):gsub('%d%d%d?%d?%d?%d?',
+    function(x)\r\n    if (#x < 6) then return '' end\r\n    local c=0\r\n    for
+    i=1,6 do c=c+(x:sub(i,i)=='1' and 2^(6-i) or 0) end\r\n    return b:sub(c+1,c+1)\r\n
+    \ end)..({ '', '==', '=' })[#data%3+1])\r\nend\r\n\r\n-- decoding\r\nfunction
+    dec(data)\r\n  data = string.gsub(data, '[^'..b..'=]', '')\r\n  return (data:gsub('.',
+    function(x)\r\n    if (x == '=') then return '' end\r\n    local r,f='',(b:find(x)-1)\r\n
+    \   for i=6,1,-1 do r=r..(f%2^i-f%2^(i-1)>0 and '1' or '0') end\r\n    return
+    r;\r\n  end):gsub('%d%d%d?%d?%d?%d?%d?%d?', function(x)\r\n    if (#x ~= 8) then
+    return '' end\r\n    local c=0\r\n    for i=1,8 do c=c+(x:sub(i,i)=='1' and 2^(8-i)
+    or 0) end\r\n      return string.char(c)\r\n  end))\r\nend\r\n\r\n--======================================================================\r\n--
+    KONG PLUGIN LOGIC \r\n--======================================================================\r\n\r\n--
+    This function is executed when all response headers bytes have been\r\n-- received
+    from the upstream service (backend).\r\nfunction JWTCheckerHandler:header_filter(config)\r\n
+    \ kong.log(\"LOG.header_filter: start\\n\")\r\n  \r\n  -- Process the headers\r\n
+    \ JWTCheckerHandler.authorized = false\r\n  local authHeaderValue = kong.request.get_header('authorization')\r\n
+    \ \r\n  -- Check if there's an 'Authorization' header\r\n  if authHeaderValue\r\n
+    \ then\r\n    kong.log(\"LOG.header_filter: authorization header found\\n\")\r\n
+    \ \r\n    -- Check if the header contains 'Bearer'\r\n    if string.find(authHeaderValue,
+    \"Bearer\")\r\n    then\r\n      kong.log(\"LOG.header_filter: Bearer authorization
+    type\\n\")\r\n\r\n      local token = removeSubstring(authHeaderValue, \"Bearer
+    \")\r\n      kong.log(\"LOG.header_filter: token: \", token, \"\\n\")\r\n\r\n
+    \     local tokenParts = stringSplit(token, \".\")\r\n\r\n      local tokenHeader
+    = dec(tokenParts[1])\r\n      kong.log(\"LOG.header_filter: tokenHeader: \", tokenHeader,
+    \"\\n\")\r\n      \r\n      local tokenType = tokenHeader:gsub(\"%s+\", \"\")\r\n
+    \     tokenType = tokenType:lower()\r\n      kong.log(\"LOG.header_filter: tokenType:
+    \", tokenType, \"\\n\")\r\n\r\n      -- If we found a JWT token in the request
+    header\r\n      if string.find(tokenType, '\"typ\":\"jwt\"')\r\n      then\r\n
+    \       kong.log(\"LOG.header_filter: found JWT token\\n\")\r\n\r\n        --
+    Save the token for later (body_filter)\r\n        JWTCheckerHandler.token = token\r\n
+    \       JWTCheckerHandler.tokenParts = tokenParts\r\n        JWTCheckerHandler.authorized
+    = true\r\n        \r\n        -- Set status code 200: OK\r\n        kong.response.set_status(200)\r\n
+    \     else\r\n        -- Set status code 403: Forbidden\r\n        kong.response.set_status(403)\r\n
+    \     end\r\n    end\r\n  else\r\n    kong.log(\"LOG.header_filter: authorization
+    not found\\n\")\r\n    \r\n    -- Set status code 401: Unauthorized\r\n    kong.response.set_status(401)\r\n
+    \ end\r\n  \r\n  -- Find the \"Content-Length\" header (default headers conversion:
+    Content-Length -> content_length)\r\n  local lengthHeaderValue = kong.response.get_header('content_length')\r\n
+    \ if lengthHeaderValue\r\n  then\r\n    kong.log(\"LOG.header_filter: current
+    Content-Length: \", lengthHeaderValue)\r\n    kong.response.clear_header('content_length')\r\n
+    \   \r\n    -- We need to clear the 'Content-Length' header if we want to change
+    the body\r\n    kong.log(\"LOG.header_filter: new Content-Length: \", kong.response.get_header('content_length'))\r\n
+    \ end\r\n  \r\n  -- Set header in response\r\n  kong.response.set_header(\"X-JwtChecker-Authorized\",
+    string.upper(tostring(JWTCheckerHandler.authorized)))\r\n  \r\n  kong.log(\"LOG.header_filter:
+    end\\n\")\r\nend\r\n\r\n-- This function is executed for each chunk of the response
+    body received from\r\n-- the upstream service (backend). This function can be
+    called multiple time if\r\n-- the response is large. However, kong.response.get_raw_body()
+    returns the full\r\n-- only when it's available, while it returns nil in other
+    cases.\r\nfunction JWTCheckerHandler:body_filter(config)\r\n  kong.log(\"LOG.body_filter:
+    start\\n\")\r\n  \r\n  -- Process the body\r\n  local body = kong.response.get_raw_body()\r\n
+    \ \r\n  -- Only executed when the last chunk has been read\r\n  if body\r\n  then\r\n
+    \   kong.log(\"LOG.body_filter: body: \\n\", body)\r\n    kong.log(\"LOG.body_filter:
+    JWTCheckerHandler.authorized: \", JWTCheckerHandler.authorized, \"\\n\")\r\n    \r\n
+    \   if JWTCheckerHandler.authorized == true\r\n    then\r\n      kong.log(\"LOG.body_filter:
+    JWT found.\\n\")\r\n      \r\n      -- Get payload of JWT token\r\n      local
+    tokenPayload = dec(JWTCheckerHandler.tokenParts[2])\r\n      \r\n      local message
+    = \"You're authorized! Payload: \" .. tokenPayload\r\n      \r\n      if config.verbose\r\n
+    \     then\r\n        -- Add the message to the body of the request\r\n        kong.response.set_raw_body(body
+    .. \"\\n\" .. message)\r\n      end\r\n    else\r\n      kong.log(\"LOG.body_filter:
+    JWT not found.\\n\")\r\n      \r\n      if config.verbose\r\n      then\r\n        --
+    Respond with an error in the body\r\n        kong.response.set_raw_body(\"You're
+    not authorized. No JWT token was found\")\r\n      else \r\n        kong.response.set_raw_body(\"\")\r\n
+    \     end\r\n    end\r\n  end\r\n  \r\n  kong.log(\"LOG.body_filter: end\\n\")\r\nend\r\n\r\n--
+    return the created table, so that Kong can execute it\r\nreturn JWTCheckerHandler\r\n"
+  schema.lua: "local typedefs = require \"kong.db.schema.typedefs\"\r\n\r\nreturn
+    {\r\n  name = \"jwtchecker\",\r\n  fields = {\r\n    {\r\n      config = {\r\n
+    \       type = \"record\",\r\n        fields = {\r\n          { \r\n            verbose
+    = {\r\n              type = \"boolean\",\r\n              default = true,\r\n
+    \             required = false,\r\n              description = \"An optional boolean
+    that indicates if the plugin must add the message at the end of the response body.
+    The message indicates if the user is authorized and if it is, it prints the payload\",\r\n
+    \           },\r\n            -- Other fields to configure the plugin (e.g. key
+    to validate the JWT)\r\n            \r\n            -- Placeholder for other fields.
+    Each additional field should be its own table within this 'fields' array.\r\n
+    \           -- {\r\n            --   my_other_field = {\r\n            --     type
+    = \"string\", -- Example type\r\n            --     default = \"default_value\",
+    -- Example default value\r\n            --     required = false,\r\n            --
+    \    description = \"Description of what this field does.\",\r\n            --
+    \  },\r\n            -- },\r\n          }\r\n        },\r\n      },\r\n    },\r\n
+    \ }\r\n}"
+kind: ConfigMap
+metadata:
+  creationTimestamp: null
+  name: jwtchecker
+  namespace: kong

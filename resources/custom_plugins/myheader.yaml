@@ -1,0 +1,15 @@
+apiVersion: v1
+data:
+  handler.lua: "local MyHeader = {}\r\n\r\n MyHeader.PRIORITY = 1000\r\n MyHeader.VERSION
+    = \"1.0.0\"\r\n\r\n function MyHeader:header_filter(conf)\r\n   -- do custom logic
+    here\r\n   kong.response.set_header(\"myheader\", conf.header_value)\r\n end\r\n\r\n
+    return MyHeader"
+  schema.lua: "return {\r\n   name = \"myheader\",\r\n   fields = {\r\n     { config
+    = {\r\n         type = \"record\",\r\n         fields = {\r\n           { header_value
+    = { type = \"string\", default = \"roar\", }, },\r\n         },\r\n     }, },\r\n
+    \  }\r\n }"
+kind: ConfigMap
+metadata:
+  creationTimestamp: null
+  name: myheader
+  namespace: kong

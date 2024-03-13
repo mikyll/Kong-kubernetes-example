@@ -1,0 +1,40 @@
+apiVersion: v1
+data:
+  handler.lua: "local LoadTestHandler = {}\r\n\r\nLoadTestHandler.PRIORITY = 1000\r\nLoadTestHandler.VERSION
+    = \"1.0.0\"\r\n\r\nmath.randomseed(os.time())\r\n\r\nfunction toboolean(str)\r\n
+    \   local bool = false\r\n    if str == \"true\" then\r\n        bool = true\r\n
+    \   end\r\n    return bool\r\nend\r\n\r\nfunction LoadTestHandler:access(config)\r\n
+    \   -- Implement logic for the access phase here (http)\r\n    kong.log(config.log_prefix)\r\n
+    \   \r\n    local load_test = toboolean(kong.request.get_query_arg(\"load_test\"))\r\n
+    \   local load_loops = tonumber(kong.request.get_query_arg(\"load_loops\"))\r\n
+    \   local load_log = toboolean(kong.request.get_query_arg(\"load_log\"))\r\n    local
+    min_buffer_value = tonumber(kong.request.get_query_arg(\"min_buffer_value\"))\r\n
+    \   local max_buffer_value = tonumber(kong.request.get_query_arg(\"max_buffer_value\"))\r\n
+    \   \r\n    if load_test then        \r\n        if not load_loops then\r\n            load_loops
+    = 1000\r\n        end\r\n        \r\n        if not min_buffer_value then\r\n
+    \           min_buffer_value = -5\r\n        end\r\n        \r\n        if not
+    max_buffer_value then\r\n            max_buffer_value = 5\r\n        end\r\n        \r\n
+    \       if max_buffer_value <= min_buffer_value then\r\n            max_buffer_value
+    = min_buffer_value + 2\r\n        end\r\n        \r\n        kong.log(\"\\nload_loops:
+    \" .. load_loops .. \"\\nmin_buffer_value: \" .. min_buffer_value .. \"\\nmax_buffer_value:
+    \" .. max_buffer_value)\r\n        \r\n        -- Load Test logic\r\n        local
+    counter = 0\r\n        local value_buffer = 0\r\n        while counter < load_loops
+    do\r\n            value_buffer = value_buffer + math.random(min_buffer_value,
+    max_buffer_value)\r\n            \r\n            if load_log then\r\n                kong.log(\"LOOP
+    #\" .. counter .. \": \" .. value_buffer)\r\n            end\r\n            counter
+    = counter + 1\r\n        end\r\n        kong.log(\"LoadTest: test ended with \"
+    .. counter .. \" load loops. Buffer value: \" .. value_buffer)\r\n    end\r\n\r\n
+    \   kong.log(config.log_suffix)\r\nend\r\n\r\n-- return the created table, so
+    that Kong can execute it\r\nreturn LoadTestHandler"
+  schema.lua: "return {\r\n  name = \"loadtest\",\r\n  fields = {\r\n    {\r\n      config
+    = {\r\n        type = \"record\",\r\n        fields = {\r\n          {\r\n            log_prefix
+    = {\r\n              type = \"string\",\r\n              required = false,\r\n
+    \             default = \"LOG: \",\r\n            },\r\n          },\r\n          {\r\n
+    \           log_suffix = {\r\n              type = \"string\",\r\n              required
+    = false,\r\n              default = \".\",\r\n            },\r\n          },\r\n
+    \       },\r\n      },\r\n    },\r\n  }\r\n}"
+kind: ConfigMap
+metadata:
+  creationTimestamp: null
+  name: loadtest
+  namespace: kong

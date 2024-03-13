@@ -1,0 +1,30 @@
+gateway:
+  admin:
+    http:
+      enabled: true
+  
+  # Database
+  env:
+    role: traditional
+    database: postgres
+    pg_user: kong-db-user
+    pg_password: kong-db-password-test
+
+  postgresql:
+    enabled: true
+    auth:
+      database: kong
+      username: kong-db-user
+      password: kong-db-password-test
+
+  # Custom Plugin
+  plugins:
+    configMaps:
+    - name: logger
+      pluginName: logger
+    - name: myheader
+      pluginName: myheader
+    - name: loadtest
+      pluginName: loadtest
+    - name: jwtchecker
+      pluginName: jwtchecker

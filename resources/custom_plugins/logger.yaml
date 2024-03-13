@@ -1,0 +1,19 @@
+apiVersion: v1
+data:
+  handler.lua: "local LoggerHandler = {}\r\n\r\nLoggerHandler.PRIORITY = 1000\r\nLoggerHandler.VERSION
+    = \"1.0.0\"\r\n\r\nfunction LoggerHandler:log(config)\r\n    -- Implement logic
+    for the log phase here (http/stream)\r\n    kong.log(config.logger_prefix)\r\n
+    \   \r\n    if config.load_test then\r\n        -- load test logic (for?)\r\n
+    \   end\r\n    \r\n    kong.log(config.logger_suffix)\r\nend\r\n\r\n-- return
+    the created table, so that Kong can execute it\r\nreturn LoggerHandler"
+  schema.lua: "return {\r\n  name = \"logger\",\r\n  fields = {\r\n    {\r\n      config
+    = {\r\n        type = \"record\",\r\n        fields = {\r\n          {\r\n            logger_prefix
+    = {\r\n              type = \"string\",\r\n              default = \"LOG: \",\r\n
+    \           },\r\n          },\r\n          {\r\n            logger_suffix = {\r\n
+    \             type = \"string\",\r\n              default = \".\",\r\n            },\r\n
+    \         },\r\n        },\r\n      },\r\n    },\r\n  }\r\n}"
+kind: ConfigMap
+metadata:
+  creationTimestamp: null
+  name: logger
+  namespace: kong

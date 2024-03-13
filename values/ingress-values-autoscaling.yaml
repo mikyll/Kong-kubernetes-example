@@ -1,0 +1,41 @@
+gateway:
+  admin:
+    http:
+      enabled: true
+
+  # Autoscaling settings
+  # NB: this requires a metrics-server resource to be active.
+  #     kubectl get pods -n kube-system | grep metrics-server
+  #
+  # on minikube can be enabled with:
+  #     minikube addons enable metrics-server
+  autoscaling:
+    enabled: true
+    minReplicas: 1
+    maxReplicas: 2
+    metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 80
+
+  resources: 
+    limits:
+      memory: 512Mi
+    requests:
+      cpu: 50m 
+      memory: 512Mi
+
+  # Custom Plugin
+  plugins:
+    configMaps:
+    - name: logger
+      pluginName: logger
+    - name: myheader
+      pluginName: myheader
+    - name: loadtest
+      pluginName: loadtest
+    - name: jwtchecker
+      pluginName: jwtchecker

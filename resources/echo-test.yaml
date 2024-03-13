@@ -1,0 +1,527 @@
+###############################################################################
+# DEPLOYMENTS #################################################################
+###############################################################################
+---
+# Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: echo
+  name: echo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: echo
+  strategy: {}
+  template:
+    metadata:
+      labels:
+        app: echo
+    spec:
+      containers:
+        - image: kong/go-echo:latest
+          name: echo
+          ports:
+            - containerPort: 1025
+            - containerPort: 1026
+            - containerPort: 1027
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+          resources: {}          
+
+
+###############################################################################
+# SERVICES ####################################################################
+###############################################################################
+---
+# Service
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: echo
+  name: echo
+spec:
+  ports:
+    - port: 1025
+      name: tcp
+      protocol: TCP
+      targetPort: 1025
+    - port: 1026
+      name: udp
+      protocol: TCP
+      targetPort: 1026
+    - port: 1027
+      name: http
+      protocol: TCP
+      targetPort: 1027
+  selector:
+    app: echo
+
+
+###############################################################################
+# SECRETS #####################################################################
+###############################################################################
+---
+# API key credential
+apiVersion: v1
+kind: Secret
+metadata:
+  name: alex-key-auth
+  labels:
+    konghq.com/credential: key-auth
+stringData:
+  key: alex_api_key
+---
+# Basic auth credential
+apiVersion: v1
+kind: Secret
+metadata:
+  name: joe-basic-auth
+  labels:
+    konghq.com/credential: basic-auth
+type: Opaque
+stringData:
+  username: joe
+  password: password
+---
+# JWT credential (admin)
+apiVersion: v1
+kind: Secret
+metadata:
+  name: admin-jwt-auth
+  labels:
+    konghq.com/credential: jwt
+type: Opaque
+stringData:
+  key: admin-issuer
+  algorithm: RS256
+  secret: empty # campo fittizio con valore arbitrario, altrimenti spara un errore
+  rsa_public_key: |
+    -----BEGIN PUBLIC KEY-----
+    MIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEAr6m2/8lMUCiBBgCXFf8B
+    DNBZ1Puk2JchjjrKQSiAbkhMgcBUzXqUaxZDc8S3s4/E1Y8HT5JMML1wF6h/AIVM
+    FjL1F+qDj0klAHae0tfAU3B2pvUpOSkWU1wWJxQDUH+CF2ihKdEhYMcQv1HGsyZM
+    FNuhYbzo9gjcTegQDHgJZd0BSoNxVBvSjE/adUU7kYuAomLDP7ETqlSSWlgIEUxL
+    FGhdch0x21J7OETlWJI3UbZxKyCOjWpqcuXYgTRnrHHD8Sy2LWs6hSIToO2ZwWHJ
+    HLcyt026eWtIhzu9NHfvU74QGLcAuDooRqtbG/u1pd8NFC7GwLqv6aIoSEvPJhbC
+    Br+HeihpCtWg4viM/uWG6La6h0aGpS5VLI/jjDfPN9yN5Yg57lHnipQNMeSisuAE
+    a10LKm5l4O6MC1VrFEqZWVGVZ/B+jEFlaqGPDSd3YvIaM7vk7S9TB4O5tEPaJ2XH
+    YQv5LtOyGxy0QpI3PyaD1Tks28wDotYcOsPMP59v7LlFewhmMw2eqzJ1lgQ3CuLr
+    p343+BMdTfLiw4Nv2h8EVFp3FLpr/xBbeM9ifkloTis+QJsxbnelGF0SzhBP5W4M
+    Fz/+NmBYpY72Q+XtoszN4E1QUsk1InJ3Wf6hZm3z/CKZLbKIn/UTYTjzKIBPQdLX
+    C6V0e/O3LEuJrP+XrEndtLsCAwEAAQ==
+    -----END PUBLIC KEY-----
+---
+# JWT credential (user)
+apiVersion: v1
+kind: Secret
+metadata:
+  name: user-jwt-auth
+  labels:
+    konghq.com/credential: jwt
+type: Opaque
+stringData:
+  key: user-issuer
+  algorithm: RS256
+  secret: empty # campo fittizio con valore arbitrario, altrimenti spara un errore
+  rsa_public_key: |
+    -----BEGIN PUBLIC KEY-----
+    MIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEAr6m2/8lMUCiBBgCXFf8B
+    DNBZ1Puk2JchjjrKQSiAbkhMgcBUzXqUaxZDc8S3s4/E1Y8HT5JMML1wF6h/AIVM
+    FjL1F+qDj0klAHae0tfAU3B2pvUpOSkWU1wWJxQDUH+CF2ihKdEhYMcQv1HGsyZM
+    FNuhYbzo9gjcTegQDHgJZd0BSoNxVBvSjE/adUU7kYuAomLDP7ETqlSSWlgIEUxL
+    FGhdch0x21J7OETlWJI3UbZxKyCOjWpqcuXYgTRnrHHD8Sy2LWs6hSIToO2ZwWHJ
+    HLcyt026eWtIhzu9NHfvU74QGLcAuDooRqtbG/u1pd8NFC7GwLqv6aIoSEvPJhbC
+    Br+HeihpCtWg4viM/uWG6La6h0aGpS5VLI/jjDfPN9yN5Yg57lHnipQNMeSisuAE
+    a10LKm5l4O6MC1VrFEqZWVGVZ/B+jEFlaqGPDSd3YvIaM7vk7S9TB4O5tEPaJ2XH
+    YQv5LtOyGxy0QpI3PyaD1Tks28wDotYcOsPMP59v7LlFewhmMw2eqzJ1lgQ3CuLr
+    p343+BMdTfLiw4Nv2h8EVFp3FLpr/xBbeM9ifkloTis+QJsxbnelGF0SzhBP5W4M
+    Fz/+NmBYpY72Q+XtoszN4E1QUsk1InJ3Wf6hZm3z/CKZLbKIn/UTYTjzKIBPQdLX
+    C6V0e/O3LEuJrP+XrEndtLsCAwEAAQ==
+    -----END PUBLIC KEY-----
+---
+# ACL group (admin)
+apiVersion: v1
+kind: Secret
+metadata:
+  name: admin-acl
+  labels:
+    konghq.com/credential: acl
+stringData:
+  group: admin
+---
+# ACL group (user)
+apiVersion: v1
+kind: Secret
+metadata:
+  name: user-acl
+  labels:
+    konghq.com/credential: acl
+stringData:
+  group: user
+
+###############################################################################
+# CONSUMERS ###################################################################
+###############################################################################
+---
+apiVersion: configuration.konghq.com/v1
+kind: KongConsumer
+metadata:
+  name: alex
+  annotations:
+    kubernetes.io/ingress.class: kong
+username: alex
+credentials:
+- alex-key-auth # references a Kubernetes secret
+---
+apiVersion: configuration.konghq.com/v1
+kind: KongConsumer
+metadata:
+ name: joe
+ annotations:
+   kubernetes.io/ingress.class: kong
+username: joe
+credentials:
+- joe-basic-auth
+---
+apiVersion: configuration.konghq.com/v1
+kind: KongConsumer
+metadata:
+ name: admin
+ annotations:
+   kubernetes.io/ingress.class: kong
+username: admin
+credentials:
+- admin-jwt-auth
+- admin-acl
+---
+apiVersion: configuration.konghq.com/v1
+kind: KongConsumer
+metadata:
+ name: user
+ annotations:
+   kubernetes.io/ingress.class: kong
+username: user
+credentials:
+- user-jwt-auth
+- user-acl
+
+###############################################################################
+# KONG PLUGINS ################################################################
+###############################################################################
+---
+# Rate Limiting plugin: https://docs.konghq.com/hub/kong-inc/rate-limiting/
+apiVersion: configuration.konghq.com/v1
+kind: KongPlugin
+metadata:
+  name: rate-limit-2rpm
+  annotations:
+    kubernetes.io/ingress.class: kong
+plugin: rate-limiting
+config:
+  minute: 2
+  policy: local
+---
+# Key Auth plugin: https://docs.konghq.com/hub/kong-inc/key-auth/
+apiVersion: configuration.konghq.com/v1
+kind: KongPlugin
+metadata:
+  name: key-auth-example
+plugin: key-auth
+config:
+  key_names:
+  - apikey
+---
+# Basic Auth plugin: https://docs.konghq.com/hub/kong-inc/basic-auth/
+apiVersion: configuration.konghq.com/v1
+kind: KongPlugin
+metadata:
+  name: basic-auth-example
+plugin: basic-auth
+config:
+  hide_credentials: true
+---
+# JWT plugin: https://docs.konghq.com/hub/kong-inc/jwt/
+apiVersion: configuration.konghq.com/v1
+kind: KongPlugin
+metadata:
+  name: jwt-auth-example
+plugin: jwt
+---
+# ACL plugin: https://docs.konghq.com/hub/kong-inc/acl/
+apiVersion: configuration.konghq.com/v1
+kind: KongPlugin
+metadata:
+  name: admin-acl-example
+plugin: acl
+config:
+  allow: ['admin']
+  #allow: # references Secret groups
+  #- 'admin'
+---
+# ACL plugin: https://docs.konghq.com/hub/kong-inc/acl/
+apiVersion: configuration.konghq.com/v1
+kind: KongPlugin
+metadata:
+  name: anyone-acl-example
+plugin: acl
+config:
+  allow: ['admin','user']
+  #allow: # references Secret groups
+  #- 'admin'
+  #- 'user'
+
+###############################################################################
+# CUSTOM PLUGINS ##############################################################
+###############################################################################
+---
+# Custom Plugin myheader
+apiVersion: configuration.konghq.com/v1
+kind: KongPlugin
+metadata:
+  name: myheader-example
+config:
+  header_value: "my first plugin"
+plugin: myheader # references pluginName in values.yaml
+---
+# Custom Plugin logger
+apiVersion: configuration.konghq.com/v1
+kind: KongPlugin
+metadata:
+  name: logger-example
+config:
+  logger_prefix: "\n\nSTART LOGGER TEST\n"
+  logger_suffix: "\nEND LOGGER TEST\n\n"
+  load_test: true
+plugin: logger # references pluginName in values.yaml
+---
+# Custom Plugin loadtest
+apiVersion: configuration.konghq.com/v1
+kind: KongPlugin
+metadata:
+  name: loadtest-example
+config:
+  log_prefix: "\n\nStart Load Test\n"
+  log_suffix: "\nEnd Load Test\n\n"
+plugin: loadtest # references pluginName in values.yaml
+---
+# Custom Plugin jwtchecker
+apiVersion: configuration.konghq.com/v1
+kind: KongPlugin
+metadata:
+  name: jwtchecker-example
+plugin: jwtchecker # references pluginName in values.yaml
+config:
+  verbose: true
+
+###############################################################################
+# ROUTES ######################################################################
+###############################################################################
+---
+# Route /echo
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: echo
+  annotations:
+    konghq.com/strip-path: 'true'
+spec:
+  parentRefs:
+  - name: kong
+  rules:
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /echo
+    backendRefs:
+    - name: echo
+      kind: Service
+      port: 1027
+---
+# Route /echo-ratelimit
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: echo-ratelimit
+  annotations:
+    konghq.com/strip-path: 'true'
+    konghq.com/plugins: 'rate-limit-2rpm'
+spec:
+  parentRefs:
+  - name: kong
+  rules:
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /echo-ratelimit
+    backendRefs:
+    - name: echo
+      kind: Service
+      port: 1027
+---
+# Route /echo-keyauth
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: echo-keyauth
+  annotations:
+    konghq.com/strip-path: 'true'
+    konghq.com/plugins: 'key-auth-example'
+spec:
+  parentRefs:
+  - name: kong
+  rules:
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /echo-keyauth
+    backendRefs:
+    - name: echo
+      kind: Service
+      port: 1027
+---
+# Route /echo-basicauth
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: echo-basicauth
+  annotations:
+    konghq.com/strip-path: 'true'
+    konghq.com/plugins: 'basic-auth-example'
+spec:
+  parentRefs:
+  - name: kong
+  rules:
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /echo-basicauth
+    backendRefs:
+    - name: echo
+      kind: Service
+      port: 1027
+---
+# Route /echo-jwtauth
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: echo-jwtauth
+  annotations:
+    konghq.com/strip-path: 'true'
+    konghq.com/plugins: 'jwt-auth-example'
+spec:
+  parentRefs:
+  - name: kong
+  rules:
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /echo-jwtauth
+    backendRefs:
+    - name: echo
+      kind: Service
+      port: 1027
+---
+# Route /echo-acl-admin
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: echo-acl-admin
+  annotations:
+    konghq.com/strip-path: 'true'
+    konghq.com/plugins: 'jwt-auth-example, admin-acl-example'
+spec:
+  parentRefs:
+  - name: kong
+  rules:
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /echo-acl/admin
+    backendRefs:
+    - name: echo
+      kind: Service
+      port: 1027
+---
+# Route /echo-acl/anyone
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: echo-acl-anyone
+  annotations:
+    konghq.com/strip-path: 'true'
+    konghq.com/plugins: 'jwt-auth-example, anyone-acl-example'
+spec:
+  parentRefs:
+  - name: kong
+  rules:
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /echo-acl/anyone
+    backendRefs:
+    - name: echo
+      kind: Service
+      port: 1027
+---
+# Route /echo-loadtest
+# test URL: http://localhost/echo-loadtest?load_test=true&load_loops=1000000000
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: echo-loadtest
+  annotations:
+    konghq.com/strip-path: 'true'
+    konghq.com/plugins: 'loadtest-example'
+spec:
+  parentRefs:
+  - name: kong
+  rules:
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /echo-loadtest
+    backendRefs:
+    - name: echo
+      kind: Service
+      port: 1027
+---
+# Route /echo-jwtchecker
+# test: curl -s -i "http://localhost/echo-jwtchecker"
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: echo-jwtchecker
+  annotations:
+    konghq.com/strip-path: 'true'
+    konghq.com/plugins: 'jwtchecker-example'
+spec:
+  parentRefs:
+  - name: kong
+  rules:
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /echo-jwtchecker
+    backendRefs:
+    - name: echo
+      kind: Service
+      port: 1027
