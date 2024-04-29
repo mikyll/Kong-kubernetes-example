@@ -1,0 +1,180 @@
+apiVersion: v1
+data:
+  encoding.lua: "local Encoding = {}\r\n\r\nlocal b='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'\r\n\r\n--
+    Encode a string in base64\r\nfunction Encoding.encodeBase64(data)\r\n  return
+    ((data:gsub('.', function(x) \r\n    local r,b='',x:byte()\r\n    for i=8,1,-1
+    do r=r..(b%2^i-b%2^(i-1)>0 and '1' or '0') end\r\n    return r;\r\n  end)..'0000'):gsub('%d%d%d?%d?%d?%d?',
+    function(x)\r\n    if (#x < 6) then return '' end\r\n    local c=0\r\n    for
+    i=1,6 do c=c+(x:sub(i,i)=='1' and 2^(6-i) or 0) end\r\n    return b:sub(c+1,c+1)\r\n
+    \ end)..({ '', '==', '=' })[#data%3+1])\r\nend\r\n\r\n-- Encode a base64 encoded
+    string \r\nfunction Encoding.decodeBase64(data)\r\n  data = string.gsub(data,
+    '[^'..b..'=]', '')\r\n  return (data:gsub('.', function(x)\r\n    if (x == '=')
+    then return '' end\r\n    local r,f='',(b:find(x)-1)\r\n    for i=6,1,-1 do r=r..(f%2^i-f%2^(i-1)>0
+    and '1' or '0') end\r\n    return r;\r\n  end):gsub('%d%d%d?%d?%d?%d?%d?%d?',
+    function(x)\r\n    if (#x ~= 8) then return '' end\r\n    local c=0\r\n    for
+    i=1,8 do c=c+(x:sub(i,i)=='1' and 2^(8-i) or 0) end\r\n      return string.char(c)\r\n
+    \ end))\r\nend\r\n\r\nreturn Encoding"
+  handler.lua: "--[[\r\n===============================================================================\r\n\r\nACL
+    JWT Custom Plugin\r\n\r\nPlugin per implementare funzionalità di autorizzazione
+    tramite ACL su Kong,\r\ncon possibilita' di impostare ruoli multipli (il plugin
+    ufficiale supporta solo\r\nsingoli ruoli, mentre per ConsumerGroup serve una licenza
+    enterprise).\r\n\r\nTODO:\r\n1. \r\n\r\n-------------------------------------------------------------------------------\r\n\r\nCome
+    funziona un JWT [...]\r\n\r\nRiferimenti (PDK):\r\n-- kong.response (https://docs.konghq.com/gateway/latest/plugin-development/pdk/kong.response/)\r\n--\r\n\r\n===============================================================================\r\n--]]\r\n\r\n--
+    Personal libs, loaded from current directory\r\nlocal Encoding = require \"kong.plugins.acl-jwt-custom.lib.encoding\"\r\nlocal
+    StringUtils = require \"kong.plugins.acl-jwt-custom.string_utils\"\r\nlocal MyACL
+    = require \"kong.plugins.acl-jwt-custom.my_acl\"\r\n\r\n-- Other libs, loaded
+    from /usr/local/share/lua/5.1/kong/tools/\r\nlocal Cjson = require \"cjson\"\r\n\r\n--
+    Kong Custom Plugin Handler\r\nlocal ACL_JWT_Handler = {}\r\n\r\nACL_JWT_Handler.PRIORITY
+    = 909 -- Run after rate-limiting\r\nACL_JWT_Handler.VERSION = \"1.0.0\"\r\nACL_JWT_Handler.NAME
+    = \"acl-jwt-custom\"\r\n\r\nlocal function find_plugin_with_key(data, keySubstring)\r\n
+    \ for _, entry in ipairs(data) do\r\n    if entry[\"__key__\"]:find(keySubstring,
+    1, true) then\r\n      return entry\r\n    end\r\n  end\r\n  return nil\r\nend\r\n\r\nlocal
+    function get_scopes_str(scopes)\r\n  local scopes_str = \"\"\r\n  for i, scope
+    in ipairs(scopes)\r\n  do\r\n    scopes_str = scopes_str .. \"- \" .. scope\r\n
+    \   if i < #scopes\r\n    then\r\n      scopes_str = scopes_str .. \"\\n\"\r\n
+    \   end\r\n  end\r\n  return scopes_str\r\nend\r\n\r\n-- TESTING FUNCTION\r\nlocal
+    function test_mock(scopes, acl)\r\n  local path = \"/admin\"\r\n  if MyACL.check_permissions(path,
+    scopes, acl)\r\n  then\r\n    kong.log(\"LOG.header_filter:\\nACCESS GRANTED:
+    \", path, \"\\n\\n\")\r\n  else\r\n    kong.log(\"LOG.header_filter:\\nACCESS
+    DENIED: \", path, \"\\n\\n\")\r\n  end\r\n  \r\n  path = \"/customer\"\r\n  if
+    MyACL.check_permissions(path, scopes, acl)\r\n  then\r\n    kong.log(\"LOG.header_filter:\\nACCESS
+    GRANTED: \", path, \"\\n\\n\")\r\n  else\r\n    print(\"LOG.header_filter:\\nACCESS
+    DENIED: \", path, \"\\n\\n\")\r\n  end\r\nend\r\n\r\n\r\n--======================================================================\r\n--
+    KONG PLUGIN LOGIC \r\n--======================================================================\r\n\r\nACL_JWT_Handler.ACCESS_GRANTED
+    = false\r\n\r\n-- Called when a new configuration is loaded for this plugin\r\nfunction
+    ACL_JWT_Handler:configure(configs)\r\n  -- kong.log(\"LOG.configure: start\\n\\n\")\r\n
+    \ \r\n  -- Loop over all the configurations (it's an array containing\r\n  --
+    \ a configuration dictionary for each plugin)\r\n  local acl_config = find_plugin_with_key(configs,
+    \"plugins:\" .. self.NAME)\r\n  \r\n  -- Check if we found a config for our ACL
+    plugin\r\n  if not acl_config\r\n  then\r\n    kong.log(\"LOG.configure:\\nACL
+    config is missing in the array\\n\\n\")\r\n  end\r\n  kong.log(\"LOG.configure:\\nACL:\\n\",
+    MyACL.table_to_yaml(acl_config.acl), \"\\n\\n\")\r\n\r\n  -- kong.log(\"LOG.configure:
+    end\\n\\n\")\r\nend\r\n\r\n-- Docs: [...]\r\nfunction ACL_JWT_Handler:header_filter(config)\r\n
+    \ if config.verbose then kong.log(\"LOG.header_filter: start\\n\\n\") end\r\n
+    \ \r\n  -- No ACL was passed in plugin configuration\r\n  if not config.acl\r\n
+    \ then \r\n    kong.log(\"LOG.header_filter: ACL config not found.\\n\\n\")\r\n
+    \   return kong.response.error(401, \"ACL is missing\")\r\n  end\r\n  \r\n  --
+    Find 'Authorization' header\r\n  local authHeaderValue = kong.request.get_header('authorization')\r\n
+    \ if not authHeaderValue\r\n  then\r\n    kong.log(\"LOG.header_filter: authorization
+    header not found.\\n\\n\")\r\n    return kong.response.error(401, \"Authorization
+    header missing.\")\r\n  end\r\n  if config.verbose then kong.log(\"LOG.header_filter:
+    authorization header found.\\n\\n\") end\r\n  \r\n  -- Find 'Bearer' authorization
+    schema\r\n  if not string.find(string.lower(authHeaderValue), \"bearer\")\r\n
+    \ then\r\n    kong.log(\"LOG.header_filter: Bearer authorization schema missing.\\n\\n\")\r\n
+    \   return kong.response.error(401, \"Authorization header schema must be 'Bearer'.
+    Current schema: \" .. authHeaderValue)\r\n  end\r\n  if config.verbose then kong.log(\"LOG.header_filter:
+    Bearer authorization schema\\n\\n\") end\r\n  \r\n  -- Get token\r\n  local token
+    = removeSubstring(authHeaderValue, \"Bearer \")\r\n  if config.verbose then kong.log(\"LOG.header_filter:\\nFull
+    encoded token: \", token, \"\\n\\n\") end\r\n  \r\n  -- Count the token parts\r\n
+    \ local tokenParts = stringSplit(token, \".\")\r\n  if #tokenParts ~= 3\r\n  then\r\n
+    \   kong.log(\"LOG.header_filter:\\nThe token is missing a part (num parts: \",
+    #tokenParts, \").\\n\\n\")\r\n    return kong.response.error(403, \"The token
+    is missing a part (num parts: \" .. tostring(#tokenParts) .. \").\")\r\n  end\r\n
+    \ \r\n  -- Get token parts (decode JWT)\r\n  local tokenHeader = Encoding.decodeBase64(tokenParts[1])\r\n
+    \ local tokenPayload = Encoding.decodeBase64(tokenParts[2])\r\n  local tokenSignature
+    = tokenParts[3]\r\n  if config.verbose then kong.log(\"LOG.header_filter:\\nToken
+    parts:\\nHeader: \", \r\n    tokenHeader, \"\\nPayload: \", tokenPayload, \"\\nSignature:
+    \", tokenSignature, \"\\n\\n\") end\r\n  \r\n  -- Check JWT validity: claims,
+    signature and expiration time\r\n  -- Find 'typ:jwt'\r\n  local tokenType = tokenHeader:gsub(\"%s+\",
+    \"\")\r\n  if not string.find(string.lower(tokenType), '\"typ\":\"jwt\"')\r\n
+    \ then\r\n    kong.log(\"LOG.header_filter:\\nWrong token type: \", tokenType,
+    \"\\n\\n\")\r\n    return kong.response.error(403, \"Wrong token type: \" .. tokenType)\r\n
+    \ end\r\n  if config.verbose then kong.log(\"LOG.header_filter:\\nCorrect token
+    type: \", tokenType, \"\\n\\n\") end\r\n  \r\n  -- Find key \"scopes\" in JWT
+    payload (JSON)\r\n  local payload = Cjson.decode(tokenPayload)\r\n  if not payload.scopes\r\n
+    \ then\r\n    kong.log(\"LOG.header_filter:\\nField 'scopes' not found.\\n\\n\")\r\n
+    \   return kong.response.error(403, \"No field 'scopes' was found in JWT.\")\r\n
+    \ end\r\n  \r\n  -- Log scopes in a fancy way\r\n  local scopes_str = get_scopes_str(payload.scopes)\r\n
+    \ if config.verbose then kong.log(\"LOG.header_filter:\\n\", #payload.scopes,
+    \" scopes found in request JWT:\\n\", scopes_str, \"\\n\\n\") end\r\n  \r\n  --
+    TEST PATHs\r\n  local path_str = kong.request.get_path()\r\n  local second_slash_index
+    = path_str:find(\"/\", path_str:find(\"/\") + 1) -- Find the index of the second
+    \"/\"\r\n  local path = \"/\"\r\n  if second_slash_index\r\n  then\r\n    path
+    = path_str:sub(second_slash_index) -- Get the substring starting from the second
+    \"/\"\r\n  end\r\n  if config.verbose then kong.log(\"LOG.header_filter:\\nForwarded
+    path: \", kong.request.get_forwarded_path(), \"\\nPath: \", kong.request.get_path(),
+    \"\\nRaw Path: \", kong.request.get_raw_path(), \"\\n\\n\") end\r\n  \r\n  --
+    TEST ACL\r\n  if MyACL.check_permissions(path, payload.scopes, config.acl)\r\n
+    \ then\r\n    kong.log(\"LOG.header_filter:\\nACCESS GRANTED: \", path, \"\\n\\n\")\r\n
+    \   self.ACCESS_GRANTED = true\r\n  else\r\n    kong.log(\"LOG.header_filter:\\nACCESS
+    DENIED: \", path, \"\\n\\n\")\r\n    self.ACCESS_GRANTED = false\r\n    return
+    kong.response.error(401, \"Unauthorized for path: \" .. path)\r\n  end\r\n  \r\n
+    \ -- TO TEST\r\n  -- kong.response.exit(status[, body[, headers]])\r\n  \r\n  --
+    test_mock(payload.scopes, config.acl)\r\n  \r\n  if config.verbose then kong.log(\"LOG.header_filter:
+    end\\n\\n\") end\r\nend\r\n\r\n--[[ TODO\r\n-- Docs: [...]\r\nfunction ACL_JWT_Handler:body_filter(config)\r\n
+    \ kong.log(\"LOG.body_filter: start\\n\\n\")\r\n  \r\n  -- Get the body (get_raw_body()
+    returns something only when the last chunk was received)\r\n  local body = kong.response.get_raw_body()\r\n
+    \ if body\r\n  then\r\n    -- If the access was granted, show the body of the
+    request\r\n    if self.ACCESS_GRANTED\r\n    then\r\n      kong.response.set_raw_body(\"Access
+    granted!\\n\\n\" .. body)\r\n    else\r\n      kong.response.set_raw_body(\"Access
+    denied!\\n\")\r\n    end\r\n  else\r\n    kong.response.set_raw_body(\"Access
+    denied!\\n\")\r\n  end\r\n  \r\n  kong.log(\"LOG.body_filter: end\\n\\n\")\r\nend\r\n--]]\r\n\r\n--
+    return the created table, so that Kong can execute it\r\nreturn ACL_JWT_Handler\r\n"
+  my_acl.lua: "local MyACL = {}\r\n\r\n\r\n\r\n-- Checks if the user has the required
+    permissions for a given path\r\n-- \r\n-- @path is a string representing the route
+    of the request.\r\n-- @user_permissions is an array of permissions obtained from
+    the JWT in the\r\n--    request header.\r\n-- @acl is the Access Control List,
+    i.e. a dictionary of permissions allowed\r\n--    for specific paths..\r\nfunction
+    MyACL.check_permissions(path, user_permissions, acl)\r\n  if not path or \r\n
+    \     not acl or type(acl) ~= 'table' or not acl[path] or \r\n      not user_permissions\r\n
+    \ then\r\n    return false\r\n  end\r\n  \r\n  local required_permissions = acl[path]\r\n
+    \ \r\n  for _, up in ipairs(user_permissions)\r\n  do\r\n    for _, rp in ipairs(required_permissions)\r\n
+    \   do\r\n      -- Check permission\r\n      if up == rp\r\n      then\r\n        return
+    true\r\n      end\r\n    end\r\n  end\r\n  \r\n  return false\r\nend\r\n\r\n--
+    Parse ACL and return true if it's valid\r\nfunction MyACL.is_valid(acl)\r\n  --
+    TODO\r\n\r\n  return true\r\nend\r\n\r\n-- Returns a YAML representation of the
+    ACL, passed as a table\r\n--  Parameters:\r\n--  @tbl, the ACL table object\r\n--
+    \ @indent, a string for the indentation (can be nil)\r\nfunction MyACL.table_to_yaml(tbl,
+    indent)\r\n  indent = indent or \"\"\r\n  local yaml = \"\"\r\n  \r\n  for key,
+    value in pairs(tbl)\r\n  do\r\n    yaml = yaml .. indent .. key .. \":\\n\"\r\n
+    \   if type(value) == \"table\"\r\n    then\r\n      for _, item in ipairs(value)\r\n
+    \     do\r\n        yaml = yaml .. indent .. \"  - \" .. item .. \"\\n\"\r\n      end\r\n
+    \   else\r\n      yaml = yaml .. indent .. \"  - \" .. value .. \"\\n\"\r\n    end\r\n
+    \ end\r\n  \r\n  return yaml\r\nend\r\n\r\n-- TEST (Utile per stampare una table/array)\r\nfunction
+    MyACL.dump(o)\r\n  if type(o) == 'table'\r\n  then\r\n    local s = '{ '\r\n    for
+    k,v in pairs(o)\r\n    do\r\n      if type(k) ~= 'number'\r\n      then\r\n        k
+    = '\"'..k..'\"'\r\n      end\r\n      s = s .. '['..k..'] = ' .. dump(v) .. ','\r\n
+    \   end\r\n    return s .. '} '\r\n  else\r\n    return tostring(o)\r\n  end\r\nend\r\n\r\nreturn
+    MyACL\r\n\r\n\r\n\r\n\r\n--[[ Extra\r\n\r\n-- List of available scopes\r\nlocal
+    scopes = {\r\n  -- Base\r\n  \"admin\",\r\n  \"guest\",\r\n  \r\n  -- Dealer roles\r\n
+    \ \"sales_dealer_role\",\r\n  \"service_dealer_role\",\r\n  \r\n  -- Vendor roles\r\n
+    \ \"vendor_user\",\r\n  \"digital_service_manager\",\r\n  \r\n  -- Branch roles\r\n
+    \ \"branch_user\",\r\n  \"branch_manager\",\r\n  \r\n  -- Customer roles\r\n  \"manager_di_linea\",\r\n
+    \ \"manager_manutenzione\",\r\n  \"maintainer\",\r\n  \"operator\",\r\n  \"ticket_manager\",\r\n}\r\n\r\n--
+    URL mapping\r\nlocal acl = {\r\n  [\"/admin\"] = {\"admin\"},\r\n  [\"/superuser\"]
+    = {\"admin\"},\r\n  [\"/root\"] = {\"admin\"},\r\n  \r\n  [\"/customer\"] = {\r\n
+    \   \"manager_di_linea\",\r\n    \"manager_manutenzione\", \r\n    \"maintainer\",
+    \r\n    \"operator\", \r\n    \"ticket_manager\", \r\n    \"admin\"\r\n  },\r\n
+    \ \r\n  [\"/operator\"] = {\r\n    \"operator\",\r\n    \"admin\"\r\n  },\r\n
+    \ \r\n  [\"/ticket_manager\"] = {\r\n    \"ticket_manager\",\r\n    \"admin\"\r\n
+    \ },\r\n}\r\n--]]"
+  schema.lua: "local typedefs = require \"kong.db.schema.typedefs\"\r\n\r\nreturn
+    {\r\n  name = \"acl-jwt-custom\",\r\n  fields = {\r\n    {\r\n      config = {\r\n
+    \       type = \"record\",\r\n        fields = {\r\n          { verbose = { type
+    = \"boolean\", default = false, required = false, description = \"An optional
+    boolean that indicates if the plugin must add the message at the end of the response
+    body. The message indicates if the user is authorized and if it is, it prints
+    the payload\", }, },\r\n          { acl = { description = \"ACL mappings\", type
+    = \"map\", required = false, keys = { type = \"string\" }, values = { type = \"array\",
+    required = false, elements = { type = \"string\" }, }, }, },\r\n        },\r\n
+    \     },\r\n    },\r\n  }\r\n}"
+  string_utils.lua: "local StringUtils = {}\r\n\r\n-- This function removes the specified
+    substring from a given string.\r\n-- @param str: The original string.\r\n-- @param
+    substr: The substring to be removed.\r\n-- @return: Returns the modified string
+    with the substring removed.\r\nfunction StringUtils.removeSubstring(str, substr)\r\n
+    \ -- Find the starting index of the substring in the string.\r\n  local startIndex,
+    endIndex = string.find(str, substr)\r\n\r\n  -- If the substring is found, remove
+    it from the string.\r\n  if startIndex and endIndex\r\n  then\r\n    local prefix
+    = string.sub(str, 1, startIndex - 1)\r\n    local suffix = string.sub(str, endIndex
+    + 1)\r\n    return prefix .. suffix\r\n  end\r\n\r\n  -- If the substring is not
+    found, return the original string.\r\n  return str\r\nend\r\n\r\n-- Split the
+    specified string in a array of strings\r\n-- @param inputstr: The original string.\r\n--
+    @param sep: The separator.\r\nfunction StringUtils.stringSplit(inputstr, sep)\r\n\tif
+    sep == nil\r\n    then\r\n\t\tsep = \"%s\"\r\n\tend\r\n\tlocal t = {}\r\n\tfor
+    str in string.gmatch(inputstr, \"([^\"..sep..\"]+)\")\r\n    do\r\n\t\ttable.insert(t,
+    str)\r\n\tend\r\n\treturn t\r\nend\r\n\r\nreturn StringUtils"
+kind: ConfigMap
+metadata:
+  creationTimestamp: null
+  name: acl-jwt-custom
+  namespace: kong
