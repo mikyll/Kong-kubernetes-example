@@ -1,14 +1,21 @@
 local MyACL = {}
 
+-- Parse ACL and return true if it's valid
+--  Parameters:
+--  - @acl is the ACL (Access Control List) to be parsed
+function MyACL.is_valid(acl)
+  -- TODO
 
+  return true
+end
 
--- Checks if the user has the required permissions for a given path
--- 
--- @path is a string representing the route of the request.
--- @user_permissions is an array of permissions obtained from the JWT in the
+-- Checks if the user has the required permissions for a given path.
+--  Parameters:
+--  - @path is a string representing the route of the request.
+--  - @user_permissions is an array of permissions obtained from the JWT in the
 --    request header.
--- @acl is the Access Control List, i.e. a dictionary of permissions allowed
---    for specific paths..
+--  - @acl is the ACL (Access Control List), i.e. a dictionary of permissions 
+--    allowed for specific paths.
 function MyACL.check_permissions(path, user_permissions, acl)
   if not path or 
       not acl or type(acl) ~= 'table' or not acl[path] or 
@@ -32,13 +39,6 @@ function MyACL.check_permissions(path, user_permissions, acl)
   end
   
   return false
-end
-
--- Parse ACL and return true if it's valid
-function MyACL.is_valid(acl)
-  -- TODO
-
-  return true
 end
 
 -- Returns a YAML representation of the ACL, passed as a table
@@ -86,61 +86,3 @@ function MyACL.dump(o)
 end
 
 return MyACL
-
-
-
-
---[[ Extra
-
--- List of available scopes
-local scopes = {
-  -- Base
-  "admin",
-  "guest",
-  
-  -- Dealer roles
-  "sales_dealer_role",
-  "service_dealer_role",
-  
-  -- Vendor roles
-  "vendor_user",
-  "digital_service_manager",
-  
-  -- Branch roles
-  "branch_user",
-  "branch_manager",
-  
-  -- Customer roles
-  "manager_di_linea",
-  "manager_manutenzione",
-  "maintainer",
-  "operator",
-  "ticket_manager",
-}
-
--- URL mapping
-local acl = {
-  ["/admin"] = {"admin"},
-  ["/superuser"] = {"admin"},
-  ["/root"] = {"admin"},
-  
-  ["/customer"] = {
-    "manager_di_linea",
-    "manager_manutenzione", 
-    "maintainer", 
-    "operator", 
-    "ticket_manager", 
-    "admin"
-  },
-  
-  ["/operator"] = {
-    "operator",
-    "admin"
-  },
-  
-  ["/ticket_manager"] = {
-    "ticket_manager",
-    "admin"
-  },
-}
---]]
