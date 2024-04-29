@@ -331,6 +331,31 @@ metadata:
 plugin: jwtchecker # references pluginName in values.yaml
 config:
   verbose: true
+---
+# Custom Plugin acl-jwt-custom
+apiVersion: configuration.konghq.com/v1
+kind: KongPlugin
+metadata:
+  name: acl-jwt-custom-example
+plugin: acl-jwt-custom # references pluginName in values.yaml
+config:
+  verbose: true
+  acl:
+    "/admin":
+      - "admin"
+    "/customer":
+      - "manager_di_linea"
+      - "manager_manutenzione"
+      - "maintainer"
+      - "operator"
+      - "ticket_manager"
+      - "admin"
+    "/operator":
+      - "operator"
+      - "admin"
+    "/ticket_manager":
+      - "ticket_manager"
+      - "admin"
 
 ###############################################################################
 # ROUTES ######################################################################
@@ -521,6 +546,50 @@ spec:
     - path:
         type: PathPrefix
         value: /echo-jwtchecker
+    backendRefs:
+    - name: echo
+      kind: Service
+      port: 1027
+---
+# Route /echo-acl-jwt-custom
+# test: curl -s -i "http://localhost/echo-acl-jwt-custom/customer"
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: echo-acl-jwt-custom
+  annotations:
+    konghq.com/strip-path: 'true'
+    konghq.com/plugins: 'acl-jwt-custom-example'
+spec:
+  parentRefs:
+  - name: kong
+  rules:
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /echo-acl-jwt-custom
+    backendRefs:
+    - name: echo
+      kind: Service
+      port: 1027
+---
+# Route /echo-acl-jwt-custom-rate-limit
+# test: curl -s -i "http://localhost/echo-jwtchecker-rate-limit"
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: echo-acl-jwt-custom-rate-limit
+  annotations:
+    konghq.com/strip-path: 'true'
+    konghq.com/plugins: 'acl-jwt-custom-example,rate-limit-2rpm'
+spec:
+  parentRefs:
+  - name: kong
+  rules:
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /echo-acl-jwt-custom-rate-limit
     backendRefs:
     - name: echo
       kind: Service
