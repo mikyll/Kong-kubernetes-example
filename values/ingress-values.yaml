@@ -1,5 +1,10 @@
 gateway:
   admin:
+    enabled: true
+    type: ClusterIP
+    clusterIP: None
+    
+    # Needed for Kong Manager on HTTP
     http:
       enabled: true
 
@@ -14,3 +19,7 @@ gateway:
       pluginName: loadtest
     - name: jwtchecker
       pluginName: jwtchecker
+      
+    # Custom ACL plugin
+    - name: "acl-jwt-custom"
+      pluginName: "acl-jwt-custom"

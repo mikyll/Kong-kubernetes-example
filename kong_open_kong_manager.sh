@@ -9,6 +9,9 @@ cleanup() {
 trap "cleanup" SIGINT
 trap "cleanup" SIGHUP
 
+# NB: we cannot use Kong Manager properly, in local over HTTPS, due to 
+#   certification authority validation.
+#   However, HTTP works fine.
 kubectl port-forward -n kong services/kong-gateway-admin 8001:8001 2>&1 &
 PID_ADMIN=$!
 kubectl port-forward -n kong services/kong-gateway-manager 8002:8002 2>&1 &
