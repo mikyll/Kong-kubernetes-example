@@ -35,7 +35,7 @@ local Cjson = require "cjson"
 -- Kong Custom Plugin Handler
 local ACL_JWT_Handler = {}
 
-ACL_JWT_Handler.PRIORITY = 909 -- Run after rate-limiting
+ACL_JWT_Handler.PRIORITY = 850 -- Lower priority than rate-limiting (i.e. runs after)
 ACL_JWT_Handler.VERSION = "1.0.0"
 ACL_JWT_Handler.NAME = "acl-jwt-custom"
 
@@ -106,7 +106,7 @@ function ACL_JWT_Handler:configure(configs)
 end
 
 -- Docs: [...]
-function ACL_JWT_Handler:header_filter(config)
+function ACL_JWT_Handler:access(config)
   if config.verbose then kong.log("LOG.header_filter: start\n\n") end
   
   -- No ACL was passed in plugin configuration

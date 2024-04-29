@@ -31,17 +31,17 @@ data:
     = require \"kong.plugins.acl-jwt-custom.my_acl\"\r\n\r\n-- Other libs, loaded
     from /usr/local/share/lua/5.1/kong/tools/\r\nlocal Cjson = require \"cjson\"\r\n\r\n--
     Kong Custom Plugin Handler\r\nlocal ACL_JWT_Handler = {}\r\n\r\nACL_JWT_Handler.PRIORITY
-    = 909 -- Run after rate-limiting\r\nACL_JWT_Handler.VERSION = \"1.0.0\"\r\nACL_JWT_Handler.NAME
-    = \"acl-jwt-custom\"\r\n\r\nlocal function find_plugin_with_key(data, keySubstring)\r\n
-    \ for _, entry in ipairs(data) do\r\n    if entry[\"__key__\"]:find(keySubstring,
-    1, true) then\r\n      return entry\r\n    end\r\n  end\r\n  return nil\r\nend\r\n\r\nlocal
-    function get_scopes_str(scopes)\r\n  local scopes_str = \"\"\r\n  for i, scope
-    in ipairs(scopes)\r\n  do\r\n    scopes_str = scopes_str .. \"- \" .. scope\r\n
-    \   if i < #scopes\r\n    then\r\n      scopes_str = scopes_str .. \"\\n\"\r\n
-    \   end\r\n  end\r\n  return scopes_str\r\nend\r\n\r\n-- TESTING FUNCTION\r\nlocal
-    function test_mock(scopes, acl)\r\n  local path = \"/admin\"\r\n  if MyACL.check_permissions(path,
-    scopes, acl)\r\n  then\r\n    kong.log(\"LOG.header_filter:\\nACCESS GRANTED:
-    \", path, \"\\n\\n\")\r\n  else\r\n    kong.log(\"LOG.header_filter:\\nACCESS
+    = 850 -- Lower priority than rate-limiting (i.e. runs after)\r\nACL_JWT_Handler.VERSION
+    = \"1.0.0\"\r\nACL_JWT_Handler.NAME = \"acl-jwt-custom\"\r\n\r\nlocal function
+    find_plugin_with_key(data, keySubstring)\r\n  for _, entry in ipairs(data) do\r\n
+    \   if entry[\"__key__\"]:find(keySubstring, 1, true) then\r\n      return entry\r\n
+    \   end\r\n  end\r\n  return nil\r\nend\r\n\r\nlocal function get_scopes_str(scopes)\r\n
+    \ local scopes_str = \"\"\r\n  for i, scope in ipairs(scopes)\r\n  do\r\n    scopes_str
+    = scopes_str .. \"- \" .. scope\r\n    if i < #scopes\r\n    then\r\n      scopes_str
+    = scopes_str .. \"\\n\"\r\n    end\r\n  end\r\n  return scopes_str\r\nend\r\n\r\n--
+    TESTING FUNCTION\r\nlocal function test_mock(scopes, acl)\r\n  local path = \"/admin\"\r\n
+    \ if MyACL.check_permissions(path, scopes, acl)\r\n  then\r\n    kong.log(\"LOG.header_filter:\\nACCESS
+    GRANTED: \", path, \"\\n\\n\")\r\n  else\r\n    kong.log(\"LOG.header_filter:\\nACCESS
     DENIED: \", path, \"\\n\\n\")\r\n  end\r\n  \r\n  path = \"/customer\"\r\n  if
     MyACL.check_permissions(path, scopes, acl)\r\n  then\r\n    kong.log(\"LOG.header_filter:\\nACCESS
     GRANTED: \", path, \"\\n\\n\")\r\n  else\r\n    print(\"LOG.header_filter:\\nACCESS
@@ -55,7 +55,7 @@ data:
     plugin\r\n  if not acl_config\r\n  then\r\n    kong.log(\"LOG.configure:\\nACL
     config is missing in the array\\n\\n\")\r\n  end\r\n  kong.log(\"LOG.configure:\\nACL:\\n\",
     MyACL.table_to_yaml(acl_config.acl), \"\\n\\n\")\r\n\r\n  -- kong.log(\"LOG.configure:
-    end\\n\\n\")\r\nend\r\n\r\n-- Docs: [...]\r\nfunction ACL_JWT_Handler:header_filter(config)\r\n
+    end\\n\\n\")\r\nend\r\n\r\n-- Docs: [...]\r\nfunction ACL_JWT_Handler:access(config)\r\n
     \ if config.verbose then kong.log(\"LOG.header_filter: start\\n\\n\") end\r\n
     \ \r\n  -- No ACL was passed in plugin configuration\r\n  if not config.acl\r\n
     \ then \r\n    kong.log(\"LOG.header_filter: ACL config not found.\\n\\n\")\r\n
