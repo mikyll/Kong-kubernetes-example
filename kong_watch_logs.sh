@@ -1,6 +1,7 @@
 #!/bin/bash
 
 NAMESPACE="kong"
+WINDOW_LENGTH="250"
 
 if [[ $1 -eq 1 ]] || [[ $1 -eq 2 ]]
 then
@@ -18,12 +19,12 @@ done
 
 if [[ $SELECTION -eq 1 ]]
 then
-    printf '\033[8;30;250t'
-    printf '\033[3;0;0t'
+    printf "\033[8;30;${WINDOW_LENGTH}t"
+    printf "\033[3;0;0t"
     DEPLOYMENT=$(kubectl get deployment -n "$NAMESPACE" --no-headers | grep '[ingress|kong]*controller*' | cut -f1 -d' ')
 else
-    printf '\033[8;30;250t'
-    printf '\033[3;0;500t'
+    printf "\033[8;30;${WINDOW_LENGTH}t"
+    printf "\033[3;0;500t"
     DEPLOYMENT=$(kubectl get deployment -n "$NAMESPACE" --no-headers | grep '[ingress|kong]*gateway*' | cut -f1 -d' ')
 fi
 
